@@ -68,26 +68,26 @@ def run(args):
     save_table(test_metrics, "metrics_test", args.results_dir)
 
     # Figure 1: what clipping the target actually did to the linear baseline.
-    # Both panels come from the same held-out fold, so only the target differs.
+    # Both panels are out-of-fold predictions over the same engines, so only
+    # the target differs between them.
     uncapped_train, _, _ = data.load_dataset(args.data_dir, args.subset, clip=None)
-    uncapped_fold = evaluate.first_fold_predictions(
+    uncapped = evaluate.out_of_fold_predictions(
         models.linear_regression(), uncapped_train, features, args.folds
     )
-    capped_fold = evaluate.first_fold_predictions(
+    capped = evaluate.out_of_fold_predictions(
         models.linear_regression(), train, features, args.folds
     )
-    plots.plot_clip_comparison(uncapped_fold, capped_fold, figures_dir=args.figures_dir)
+    plots.plot_clip_comparison(uncapped, capped, figures_dir=args.figures_dir)
 
     # Negative predicted RUL is impossible -- an engine cannot have less than
     # no life left -- and is the clearest symptom of fitting a plane to curved
-    # data. Counted on the held-out fold the figure plots, which covers every
-    # cycle; the 100-row test snapshot excludes the near-failure cycles where
-    # the linear fit undershoots hardest.
-    _, fold_predictions = capped_fold
+    # data. Counted over every cycle; the 100-row test snapshot excludes the
+    # near-failure cycles where the linear fit undershoots hardest.
+    _, capped_predictions = capped
     print(
         f"\nLinear Regression predicts negative RUL on "
-        f"{(fold_predictions < 0).sum()} of {len(fold_predictions)} held-out rows "
-        f"(minimum {fold_predictions.min():.1f} cycles); "
+        f"{(capped_predictions < 0).sum()} of {len(capped_predictions):,} held-out rows "
+        f"({(capped_predictions < 0).mean():.1%}, minimum {capped_predictions.min():.1f} cycles); "
         f"on the {len(test)}-engine test snapshot the minimum is "
         f"{test_predictions['Linear Regression'].min():.1f}"
     )
