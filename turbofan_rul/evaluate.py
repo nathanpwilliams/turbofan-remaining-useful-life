@@ -162,15 +162,22 @@ def evaluate_on_test(models, train, test, features):
     return pd.DataFrame(rows), predictions
 
 
-def first_fold_predictions(model, df, features, n_splits=5):
-    """Fit on the first grouped fold and predict its held-out engines.
+def out_of_fold_predictions(model, df, features, n_splits=5):
+    """Predict every row from a model that did not train on its engine.
 
-    Used for the predicted-vs-actual figures, which need out-of-sample
-    predictions from a single consistent split rather than a CV average.
+    Each fold predicts its own held-out engines and the pieces are stacked
+    back together, so every row gets an out-of-sample prediction and the
+    whole fleet appears exactly once. That is what the predicted-vs-actual
+    figures need -- a single fold would show only a fifth of the engines.
+
+    Returns (y_true, y_pred) aligned to each other, not to the input order.
     """
-    train_index, val_index = next(group_kfold_splits(df, n_splits))
-    train_x, train_y = split_xy(df.iloc[train_index], features)
-    val_x, val_y = split_xy(df.iloc[val_index], features)
+    actual, predicted = [], []
+    for train_index, val_index in group_kfold_splits(df, n_splits):
+        train_x, train_y = split_xy(df.iloc[train_index], features)
+        val_x, val_y = split_xy(df.iloc[val_index], features)
 
-    prediction = clone(model).fit(train_x, train_y).predict(val_x)
-    return val_y, prediction
+        actual.append(val_y.to_numpy())
+        predicted.append(clone(model).fit(train_x, train_y).predict(val_x))
+
+    return np.concatenate(actual), np.concatenate(predicted)
