@@ -113,7 +113,7 @@ from the other direction: averaged over folds there is no gap to explain.
 of the first figure shows it: the point cloud curves away from the diagonal
 instead of scattering around it, flattening above ~180 cycles. A plane cannot
 follow a curved degradation path. The clearest symptom is that it predicts
-*negative* remaining life on 621 of 20,631 held-out rows (3.0%, down to −66
+*negative* remaining life on 621 of 20,631 held-out rows (3.0%, down to −93
 cycles) — an engine with less than no life left. This is why no regularization
 was applied: the train/validation gap is 0.2 cycles after clipping, so there is
 no variance for a penalty to remove, and shrinking coefficients would only add
