@@ -125,11 +125,13 @@ def _label_validation_ends(ax, sweep):
     """
     best = sweep["val_rmse_mean"].idxmin()
     last = sweep.index[-1]
-    for row, offset in [(best, 10), (last, 10)]:
+    # dict.fromkeys drops the duplicate if the minimum is the last setting,
+    # which would otherwise print the two labels on top of each other.
+    for row in dict.fromkeys([best, last]):
         ax.annotate(
             f"{sweep.loc[row, 'val_rmse_mean']:.2f}",
             xy=(sweep.loc[row, "x"], sweep.loc[row, "val_rmse_mean"]),
-            xytext=(0, offset),
+            xytext=(0, 10),
             textcoords="offset points",
             ha="center",
             fontsize=9,
