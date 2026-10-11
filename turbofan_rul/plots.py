@@ -52,7 +52,7 @@ def plot_predicted_vs_actual(y_true, y_pred, title, ax):
     # Predictions below zero are physically impossible -- an engine cannot
     # have negative life left -- so mark the boundary when any cross it.
     if min(y_pred) < 0:
-        ax.axhline(0, linewidth=1.5, color="#e34948")
+        ax.axhline(0, linewidth=1.5, color="#e34948", label="Impossible (negative RUL)")
 
     ax.set_xlabel("Actual RUL (cycles)")
     ax.set_ylabel("Predicted RUL (cycles)")
@@ -79,8 +79,12 @@ def plot_clip_comparison(uncapped, capped, figures_dir="figures"):
     return save_figure(fig, "linear_regression_clip", figures_dir)
 
 
-def _plot_sweep(ax, sweep, parameter, xlabel, title):
-    """Draw one training/validation RMSE curve pair with std bands."""
+def _plot_sweep(ax, sweep, parameter, xlabel, title, chosen):
+    """Draw one training/validation RMSE curve pair with std bands.
+
+    `chosen` is the setting this project settled on; it gets a marker so the
+    figure says what was picked, not just what was tried.
+    """
     _style(ax)
     for column, color, label in [
         ("train_rmse", TRAIN_COLOR, "Training"),
@@ -88,16 +92,49 @@ def _plot_sweep(ax, sweep, parameter, xlabel, title):
     ]:
         mean, std = sweep[f"{column}_mean"], sweep[f"{column}_std"]
         ax.plot(sweep["x"], mean, "o-", linewidth=2, markersize=8, color=color, label=label)
-        # The band is +/- 1 std across the five folds: differences smaller
-        # than it are not real.
+        # The band is +/- 1 std across the five folds. It is wide relative to
+        # the movement in the validation curve, which is why the text reports
+        # the paired per-fold comparison rather than resting on these means.
         ax.fill_between(sweep["x"], mean - std, mean + std, color=color, alpha=0.15, linewidth=0)
+
+    chosen_x = sweep.loc[sweep[parameter] == str(chosen), "x"].iloc[0]
+    ax.axvline(chosen_x, color=REFERENCE_COLOR, linewidth=1, linestyle=":", zorder=0)
+    ax.annotate(
+        f"chosen: {chosen}",
+        xy=(chosen_x, ax.get_ylim()[0]),
+        xytext=(4, 6),
+        textcoords="offset points",
+        fontsize=8.5,
+        color=REFERENCE_COLOR,
+    )
 
     ax.set_xticks(sweep["x"])
     ax.set_xticklabels(sweep[parameter])
     ax.set_xlabel(xlabel)
     ax.set_title(title, fontsize=11)
-    ax.legend(frameon=False, fontsize=9)
+    ax.legend(frameon=False, fontsize=9, loc="upper right")
     return ax
+
+
+def _label_validation_ends(ax, sweep):
+    """Print the validation RMSE at the best and the largest setting.
+
+    The shared y-axis is set by the forest's training curve, which drops to
+    about 9 cycles, so boosting's rise past its minimum is real but too small
+    to see. The numbers carry it where the pixels cannot.
+    """
+    best = sweep["val_rmse_mean"].idxmin()
+    last = sweep.index[-1]
+    for row, offset in [(best, 10), (last, 10)]:
+        ax.annotate(
+            f"{sweep.loc[row, 'val_rmse_mean']:.2f}",
+            xy=(sweep.loc[row, "x"], sweep.loc[row, "val_rmse_mean"]),
+            xytext=(0, offset),
+            textcoords="offset points",
+            ha="center",
+            fontsize=9,
+            color=VALIDATION_COLOR,
+        )
 
 
 def plot_complexity_sweeps(rf_sweep, gb_sweep, figures_dir="figures"):
@@ -111,8 +148,11 @@ def plot_complexity_sweeps(rf_sweep, gb_sweep, figures_dir="figures"):
     """
     fig, (left, right) = plt.subplots(1, 2, figsize=(11, 4.8), sharey=True)
 
-    _plot_sweep(left, rf_sweep, "max_depth", "max_depth", "Random Forest")
-    _plot_sweep(right, gb_sweep, "n_estimators", "n_estimators (log scale)", "Gradient Boosting")
+    _plot_sweep(left, rf_sweep, "max_depth", "max_depth", "Random Forest", chosen=10)
+    _plot_sweep(
+        right, gb_sweep, "n_estimators", "n_estimators (log scale)", "Gradient Boosting", chosen=200
+    )
+    _label_validation_ends(right, gb_sweep)
 
     # Log scale because the grid spans 50 to 1000; on a linear axis the four
     # smaller values would bunch against the left edge.
@@ -150,11 +190,12 @@ def plot_model_comparison(cv_summary, figures_dir="figures"):
     )
 
     # Label each bar directly: three values is few enough that the reader
-    # should not have to measure them against the axis.
-    for bar, value in zip(bars, validation["rmse_mean"]):
+    # should not have to measure them against the axis. Sit the label clear of
+    # the error bar's top cap rather than the bar's own height.
+    for bar, value, spread in zip(bars, validation["rmse_mean"], validation["rmse_std"]):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + 1.5,
+            value + spread + 1.0,
             f"{value:.2f}",
             ha="center",
             fontsize=10,
