@@ -222,8 +222,8 @@ turbofan_rul/
   evaluate.py               RMSE, MAE, R², PHM08 score
   plots.py                  predicted-vs-actual, complexity sweeps, comparison
 notebooks/
-  results.ipynb             the analysis with commentary
-  course_original.ipynb     the original exploratory notebook, unmodified
+  results.ipynb             the analysis with commentary; ported from the original course notebook, which is preserved unmodified in the commit history
+  
 data/FD001/                 the three source files
 figures/                    generated PNGs
 results/                    generated CSVs
